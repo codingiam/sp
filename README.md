@@ -1,2 +1,2 @@
-# sp
-Sliding Puzzle
+# Sliding Puzzle
+Sliding puzzle
