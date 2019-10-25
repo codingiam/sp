@@ -13,27 +13,33 @@ width = 3
 height : Int
 height = 3
 
-board : List String
-board = List.map String.fromInt (List.range 1 (width * height - 1)) ++ [" "]
+type alias Cell = Int
+type alias Board = List Cell
 
-shuffle : List String -> List String
+board : Board
+board = List.range 0 (width * height - 1)
+
+shuffle : Board -> Board
 shuffle list =
     let
         (l, s) = Random.step (Random.List.shuffle list) (Random.initialSeed 0)
     in
         l
 
-rows : List String -> List (List String)
+rows : Board -> List (List Cell)
 rows = List.Extra.groupsOf width
 
-cell : String -> Html.Html msg
-cell s = Html.td [] [ Html.button [ Html.Attributes.disabled (s == " ")
+cell : Cell -> Html.Html msg
+cell v = Html.td [] [ Html.button [ Html.Attributes.disabled (v == 0)
                                     , Html.Attributes.style "width" "50px"
-                                    , Html.Attributes.style "height" "50px"] [Html.text s] ]
+                                    , Html.Attributes.style "height" "50px"] [Html.text (String.fromInt v)] ]
 
-row : List String -> Html.Html msg
+row : List Cell -> Html.Html msg
 row ss = Html.tr [] (List.map cell ss)
+
+toHtml : Board -> Html.Html msg
+toHtml b = Html.table [] (List.map row (rows b))
 
 main =
     Html.div []
-        [Html.table [] (List.map row (rows (shuffle board)))]
+        [toHtml (shuffle board)]
