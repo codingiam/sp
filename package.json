@@ -1,0 +1,24 @@
+{
+  "name": "simple-puzzle",
+  "version": "1.0.0",
+  "description": "Sliding puzzle",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codingiam/sp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/codingiam/sp/issues"
+  },
+  "homepage": "https://github.com/codingiam/sp#readme",
+  "devDependencies": {
+    "elm-hot": "^1.1.2",
+    "node-elm-compiler": "^5.0.4"
+  }
+}
