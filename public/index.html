@@ -9,5 +9,11 @@
 <body>
 <div id="app" class="section"></div>
 <script src="./index.js"></script>
+<script>
+Elm.Main.init({ node: document.getElementById("app") });
+if (document.getElementById("app")) {
+    document.getElementById("app").innerText = 'This is a headless program, meaning there is nothing to show here.\n\nI started the program anyway though, and you can access it as `app` in the developer console.';
+}
+</script>
 </body>
 </html>
