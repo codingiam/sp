@@ -22,7 +22,7 @@ board = List.range 0 (width * height - 1)
 shuffle : Board -> Board
 shuffle list =
     let
-        (l, s) = Random.step (Random.List.shuffle list) (Random.initialSeed 0)
+        (l, _) = Random.step (Random.List.shuffle list) (Random.initialSeed 0)
     in
         l
 
@@ -38,8 +38,16 @@ row : List Cell -> Html.Html msg
 row ss = Html.tr [] (List.map cell ss)
 
 toHtml : Board -> Html.Html msg
-toHtml b = Html.table [] (List.map row (rows b))
+toHtml b = Html.table [ Html.Attributes.class "table" ] (List.map row (rows b))
 
 main =
-    Html.div []
-        [toHtml (shuffle board)]
+    Html.main_ [ Html.Attributes.class "section" ]
+        [ Html.div [ Html.Attributes.class "container" ]
+            [ Html.h1 [ Html.Attributes.class "title has-text-centered" ]
+                      [ Html.text "Sliding Puzzle" ]
+              , Html.div [ Html.Attributes.class "box" ]
+                         [ Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
+                                    [ Html.div [ Html.Attributes.class "column is-narrow" ]
+                                               [ toHtml (shuffle board) ] ] ]
+            ]
+        ]
