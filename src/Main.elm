@@ -2,10 +2,12 @@ module Main exposing (..)
 
 import Html
 import Html.Attributes
+import Html.Events
 import List
 import List.Extra
 import Random
 import Random.List
+import Browser
 
 width : Int
 width = 3
@@ -16,31 +18,40 @@ height = 3
 type alias Cell = Int
 type alias Board = List Cell
 
-board : Board
-board = List.range 0 (width * height - 1)
+type alias Model = { board : Board
+                   , seed : Random.Seed }
 
-shuffle : Board -> Board
-shuffle list =
+type Msg = Slide Cell
+
+defaultBoard : Board
+defaultBoard =
+    List.range 0 (width * height - 1)
+
+shuffle : Board -> Random.Seed -> (Board, Random.Seed)
+shuffle b s =
+    Random.step (Random.List.shuffle b) s
+
+cell : Cell -> Html.Html Msg
+cell c =
+    Html.td [] [ Html.button [ Html.Attributes.disabled (c == 0)
+                             , Html.Attributes.style "width" "50px"
+                             , Html.Attributes.style "height" "50px"
+                             , Html.Events.onClick (Slide c) ]
+                             [ Html.text (String.fromInt c) ] ]
+
+row : List Cell -> Html.Html Msg
+row cs =
+    Html.tr [] (List.map cell cs)
+
+model : Model
+model =
     let
-        (l, _) = Random.step (Random.List.shuffle list) (Random.initialSeed 0)
+        (b, s) = shuffle defaultBoard (Random.initialSeed 0)
     in
-        l
+        { board = b, seed = s }
 
-rows : Board -> List (List Cell)
-rows = List.Extra.groupsOf width
-
-cell : Cell -> Html.Html msg
-cell v = Html.td [] [ Html.button [ Html.Attributes.disabled (v == 0)
-                                    , Html.Attributes.style "width" "50px"
-                                    , Html.Attributes.style "height" "50px"] [Html.text (String.fromInt v)] ]
-
-row : List Cell -> Html.Html msg
-row ss = Html.tr [] (List.map cell ss)
-
-toHtml : Board -> Html.Html msg
-toHtml b = Html.table [ Html.Attributes.class "table" ] (List.map row (rows b))
-
-main =
+view : Model -> Html.Html Msg
+view m =
     Html.main_ [ Html.Attributes.class "section" ]
         [ Html.div [ Html.Attributes.class "container" ]
             [ Html.h1 [ Html.Attributes.class "title has-text-centered" ]
@@ -48,6 +59,21 @@ main =
               , Html.div [ Html.Attributes.class "box" ]
                          [ Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
                                     [ Html.div [ Html.Attributes.class "column is-narrow" ]
-                                               [ toHtml (shuffle board) ] ] ]
+                                               [ Html.table [ Html.Attributes.class "table" ]
+                                                            (List.map row (List.Extra.groupsOf width m.board)) ] ] ]
             ]
         ]
+
+controller : Msg -> Model -> Model
+controller (Slide _) m =
+    let
+        (b, s) = shuffle m.board m.seed
+    in
+        { m | board = b, seed = s }
+
+main : Program () Model Msg
+main =
+    Browser.sandbox { init = model
+                    , view = view
+                    , update = controller
+                    }
