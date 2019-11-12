@@ -5,6 +5,8 @@ import Html.Attributes
 import Html.Events
 import List
 import List.Extra
+import Platform.Cmd
+import Platform.Sub
 import Random
 import Random.List
 import Browser
@@ -17,19 +19,20 @@ height = 3
 
 type alias Cell = Int
 type alias Board = List Cell
+type alias Moves = Int
 
-type alias Model = { board : Board
-                   , seed : Random.Seed }
+type alias Model = { board : Board, moves : Moves }
 
-type Msg = Slide Cell
+type alias Flags = ()
+
+type Msg = Reset | Shuffle Board | Slide Cell
 
 defaultBoard : Board
 defaultBoard =
-    List.range 0 (width * height - 1)
+    List.range 1 (width * height - 1) ++ [0]
 
-shuffle : Board -> Random.Seed -> (Board, Random.Seed)
-shuffle b s =
-    Random.step (Random.List.shuffle b) s
+shuffle : Board -> Cmd Msg
+shuffle b = Random.generate Shuffle (Random.List.shuffle b)
 
 cell : Cell -> Html.Html Msg
 cell c =
@@ -43,12 +46,9 @@ row : List Cell -> Html.Html Msg
 row cs =
     Html.tr [] (List.map cell cs)
 
-model : Model
-model =
-    let
-        (b, s) = shuffle defaultBoard (Random.initialSeed 0)
-    in
-        { board = b, seed = s }
+model : Flags -> (Model, Cmd Msg)
+model _ =
+    ({ board = defaultBoard, moves = 0 }, Cmd.none)
 
 view : Model -> Html.Html Msg
 view m =
@@ -60,20 +60,31 @@ view m =
                          [ Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
                                     [ Html.div [ Html.Attributes.class "column is-narrow" ]
                                                [ Html.table [ Html.Attributes.class "table" ]
-                                                            (List.map row (List.Extra.groupsOf width m.board)) ] ] ]
+                                                            (List.map row (List.Extra.groupsOf width m.board)) ] ]
+                         , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
+                                    [ Html.text ("Moves: " ++ (String.fromInt m.moves)) ]
+                         , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
+                                    [ Html.button [ Html.Events.onClick Reset ] [Html.text "Reset"] ] ]
             ]
         ]
 
-controller : Msg -> Model -> Model
-controller (Slide _) m =
-    let
-        (b, s) = shuffle m.board m.seed
-    in
-        { m | board = b, seed = s }
+controller : Msg -> Model -> (Model, Cmd Msg)
+controller msg m =
+    case msg of
+        (Slide _) ->
+            ({ m | moves = m.moves + 1 }, Cmd.none)
+        Reset ->
+            ({ m | moves = 0 }, shuffle m.board)
+        (Shuffle b) ->
+            ({ m | board = b }, Cmd.none)
 
-main : Program () Model Msg
+subs : Model -> Sub Msg
+subs _ = Sub.none
+
+main : Program Flags Model Msg
 main =
-    Browser.sandbox { init = model
+    Browser.element { init = model
                     , view = view
                     , update = controller
+                    , subscriptions = subs
                     }
