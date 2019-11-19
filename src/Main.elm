@@ -10,6 +10,7 @@ import Platform.Sub
 import Random
 import Random.List
 import Browser
+import Maybe.Extra
 
 width : Int
 width = 3
@@ -27,20 +28,23 @@ type alias Flags = ()
 
 type Msg = Reset | Shuffle Board | Slide Cell
 
+zeroCell : Cell
+zeroCell = 0
+
 defaultBoard : Board
 defaultBoard =
-    List.range 1 (width * height - 1) ++ [0]
+    List.range 1 (width * height - 1) ++ [zeroCell]
 
 shuffle : Board -> Cmd Msg
 shuffle b = Random.generate Shuffle (Random.List.shuffle b)
 
 cell : Cell -> Html.Html Msg
 cell c =
-    Html.td [] [ Html.button [ Html.Attributes.disabled (c == 0)
+    Html.td [] [ Html.button [ Html.Attributes.disabled (c == zeroCell)
                              , Html.Attributes.style "width" "50px"
                              , Html.Attributes.style "height" "50px"
                              , Html.Events.onClick (Slide c) ]
-                             [ Html.text (String.fromInt c) ] ]
+                             [ Html.text (if c /= zeroCell then String.fromInt c else " ") ] ]
 
 row : List Cell -> Html.Html Msg
 row cs =
@@ -68,11 +72,69 @@ view m =
             ]
         ]
 
+up : Int -> Maybe Int
+up i = let
+         ni = i - width
+         max = 0
+       in
+         if ni < max then Nothing else Just ni
+
+down : Int -> Maybe Int
+down i = let
+           ni = i + width
+           max = width * height - 1
+         in
+           if ni > max then Nothing else Just ni
+
+left : Int -> Maybe Int
+left i = let
+           ni = i - 1
+           max = i // width * width
+         in
+           if ni < max then Nothing else Just ni
+
+right : Int -> Maybe Int
+right i = let
+            ni = i + 1
+            max = (i // width + 1) * width
+          in
+            if ni >= max then Nothing else Just ni
+
+neighbors : Board -> Cell -> List Cell
+neighbors b c = case List.Extra.elemIndex c b of
+                  Just i -> Maybe.Extra.values (List.map (\ci -> List.Extra.getAt ci b) (Maybe.Extra.values [up i, down i, left i, right i]))
+                  Nothing -> []
+
+swap : Board -> Cell -> Cell -> Board
+swap b c1 c2 = case List.Extra.elemIndex c1 b of
+                 Just i1 -> case List.Extra.elemIndex c2 b of
+                              Just i2 -> List.Extra.swapAt i1 i2 b
+                              Nothing -> b
+                 Nothing -> b
+
+solved : Board -> Bool
+solved b = let
+             nb = Maybe.withDefault [] (List.Extra.init b)
+           in
+             List.all (\ (e1, e2) -> e1 < e2) (List.Extra.zip nb (List.drop 1 nb))
+
+move : Board -> Cell -> Maybe Board
+move b c = let
+             n = neighbors b zeroCell
+             neighbor = List.member c n
+           in
+             if neighbor && (not (solved b)) then Just (swap b c zeroCell) else Nothing
+
 controller : Msg -> Model -> (Model, Cmd Msg)
 controller msg m =
     case msg of
-        (Slide _) ->
-            ({ m | moves = m.moves + 1 }, Cmd.none)
+        (Slide c) ->
+            let
+                board = move m.board c
+            in
+                case board of
+                    Nothing -> (m, Cmd.none)
+                    Just b -> ({ m | board = b, moves = m.moves + 1 }, Cmd.none)
         Reset ->
             ({ m | moves = 0 }, shuffle m.board)
         (Shuffle b) ->
