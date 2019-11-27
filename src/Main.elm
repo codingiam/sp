@@ -113,10 +113,7 @@ swap b c1 c2 = case List.Extra.elemIndex c1 b of
                  Nothing -> b
 
 solved : Board -> Bool
-solved b = let
-             nb = Maybe.withDefault [] (List.Extra.init b)
-           in
-             List.all (\ (e1, e2) -> e1 < e2) (List.Extra.zip nb (List.drop 1 nb))
+solved b = (b == defaultBoard)
 
 move : Board -> Cell -> Maybe Board
 move b c = let
