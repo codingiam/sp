@@ -11,7 +11,7 @@ import Random
 import Random.List
 import Browser
 import Maybe.Extra
-import Dict
+import IntDict
 import Bitwise
 
 width : Int
@@ -25,7 +25,7 @@ type alias Board = List Cell
 type alias BoardID = Int
 type alias ParentBoardID = BoardID
 type alias BoardAndParent = (Board, ParentBoardID)
-type alias IdToBoard = Dict.Dict BoardID BoardAndParent
+type alias IdToBoard = IntDict.IntDict BoardAndParent
 type alias Moves = Int
 type alias Times = Int
 
@@ -162,27 +162,27 @@ foldk1 = foldk
 foldk2 : (Cell -> IdToBoard -> (IdToBoard -> IdToBoard) -> IdToBoard) -> IdToBoard -> List Cell -> IdToBoard
 foldk2 = foldk
 
-lmember : Board -> Dict.Dict BoardID BoardAndParent -> Bool
-lmember b bs = Dict.member (hash b) bs
+lmember : Board -> IdToBoard -> Bool
+lmember b bs = IntDict.member (hash b) bs
 
-dosolve : (Dict.Dict BoardID BoardAndParent, Dict.Dict BoardID BoardAndParent) -> Dict.Dict BoardID BoardAndParent
+dosolve : (IdToBoard, IdToBoard) -> IdToBoard
 dosolve (p, u) =
     let
         ru = foldk1 (\(bi, (b, pbi)) a f ->
                             if lmember b p || lmember b a then f a
-                                else if solved b then Dict.singleton (hash b) (b, pbi)
+                                else if solved b then IntDict.singleton (hash b) (b, pbi)
                                     else f (foldk2 (\c ia g -> let
                                                                  nb = swap b c zeroCell
                                                                 in
-                                                                  if solved nb then Dict.singleton (hash nb) (nb, bi)
-                                                                      else g (Dict.insert (hash nb) (nb, bi) ia)) a (neighbors b zeroCell))) Dict.empty (Dict.toList u)
+                                                                  if solved nb then IntDict.singleton (hash nb) (nb, bi)
+                                                                      else g (IntDict.insert (hash nb) (nb, bi) ia)) a (neighbors b zeroCell))) IntDict.empty (IntDict.toList u)
     in
-        if Dict.isEmpty ru then p
-            else dosolve (Dict.union p u, ru)
+        if IntDict.isEmpty ru then p
+            else dosolve (IntDict.union p u, ru)
 
-solve : Board -> Dict.Dict BoardID BoardAndParent
+solve : Board -> IdToBoard
 solve b =
-    dosolve (Dict.empty, Dict.singleton (hash b) (b, 0))
+    dosolve (IntDict.empty, IntDict.singleton (hash b) (b, 0))
 
 controller : Msg -> Model -> (Model, Cmd Msg)
 controller msg m =
