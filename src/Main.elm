@@ -21,23 +21,27 @@ height = 3
 type alias Cell = Int
 type alias Board = List Cell
 type alias Moves = Int
+type alias Times = Int
 
 type alias Model = { board : Board, moves : Moves }
 
 type alias Flags = ()
 
-type Msg = ResetClick | Shuffle Board | Slide Cell
+type Msg = ResetClick | Shuffle Times Board (Maybe Cell, List Cell) | Slide Cell
 
 zeroCell : Cell
 zeroCell = 0
+
+shuffleTimes : Times
+shuffleTimes = 21
 
 defaultBoard : Board
 defaultBoard =
     List.range 1 (width * height - 1) ++ [zeroCell]
 
-shuffle : Board -> Cmd Msg
-shuffle b =
-    Random.generate Shuffle (Random.List.shuffle b)
+shuffle : Times -> Board -> Cmd Msg
+shuffle t b =
+    Random.generate (Shuffle t b) (Random.List.choose (neighbors b zeroCell))
 
 cell : Cell -> Html.Html Msg
 cell c =
@@ -129,22 +133,29 @@ move b c =
         n = neighbors b zeroCell
         neighbor = List.member c n
     in
-        if neighbor && (not (solved b)) then Just (swap b c zeroCell) else Nothing
+        if neighbor then Just (swap b c zeroCell) else Nothing
 
 controller : Msg -> Model -> (Model, Cmd Msg)
 controller msg m =
     case msg of
-        (Shuffle b) ->
-            ({ m | board = b }, Cmd.none)
+        (Shuffle t b (Just c, _)) ->
+            let
+                board = move b c
+            in
+                case board of
+                    Nothing -> (m, Cmd.none)
+                    Just nb -> ({ m | board = nb }, if t > 0 then shuffle (t - 1) nb else Cmd.none)
+        Shuffle _ _ ( Nothing, _ ) ->
+            (m, Cmd.none)
         (Slide c) ->
             let
-                board = move m.board c
+                board = if (not (solved m.board)) then move m.board c else Nothing
             in
                 case board of
                     Nothing -> (m, Cmd.none)
                     Just b -> ({ m | board = b, moves = m.moves + 1 }, Cmd.none)
         ResetClick ->
-            ({ m | moves = 0 }, shuffle m.board)
+            ({ m | moves = 0 }, shuffle shuffleTimes m.board)
 
 subs : Model -> Sub Msg
 subs _ =
