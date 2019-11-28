@@ -27,22 +27,27 @@ type alias ParentBoardID = BoardID
 type alias BoardAndParent = (Board, ParentBoardID)
 type alias IdToBoard = Dict.Dict BoardID BoardAndParent
 type alias Moves = Int
+type alias Times = Int
 
 type alias Model = { board : Board, moves : Moves }
 
 type alias Flags = ()
 
-type Msg = ResetClick | HintClick | Shuffle Board | Slide Cell
+type Msg = ResetClick | HintClick | Shuffle Times Board (Maybe Cell, List Cell) | Slide Cell
 
 zeroCell : Cell
 zeroCell = 0
+
+shuffleTimes : Times
+shuffleTimes = 21
 
 defaultBoard : Board
 defaultBoard =
     List.range 1 (width * height - 1) ++ [zeroCell]
 
-shuffle : Board -> Cmd Msg
-shuffle b = Random.generate Shuffle (Random.List.shuffle b)
+shuffle : Times -> Board -> Cmd Msg
+shuffle t b =
+    Random.generate (Shuffle t b) (Random.List.choose (neighbors b zeroCell))
 
 cell : Cell -> Html.Html Msg
 cell c =
@@ -75,59 +80,67 @@ view m =
                                     [ Html.text ("Moves: " ++ (String.fromInt m.moves)) ]
                          , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
                                     [ Html.button [ Html.Events.onClick ResetClick ] [Html.text "Reset"]
-                                      , Html.button [ Html.Events.onClick HintClick ] [Html.text "Hint"] ] ]
+                                    , Html.button [ Html.Events.onClick HintClick ] [Html.text "Hint"] ] ]
             ]
         ]
 
 up : Int -> Maybe Int
-up i = let
-         ni = i - width
-         max = 0
-       in
-         if ni < max then Nothing else Just ni
+up i =
+    let
+        ni = i - width
+        max = 0
+    in
+        if ni < max then Nothing else Just ni
 
 down : Int -> Maybe Int
-down i = let
-           ni = i + width
-           max = width * height - 1
-         in
-           if ni > max then Nothing else Just ni
+down i =
+    let
+        ni = i + width
+        max = width * height - 1
+    in
+        if ni > max then Nothing else Just ni
 
 left : Int -> Maybe Int
-left i = let
-           ni = i - 1
-           max = i // width * width
-         in
-           if ni < max then Nothing else Just ni
+left i =
+    let
+         ni = i - 1
+         max = i // width * width
+    in
+         if ni < max then Nothing else Just ni
 
 right : Int -> Maybe Int
-right i = let
-            ni = i + 1
-            max = (i // width + 1) * width
-          in
-            if ni >= max then Nothing else Just ni
+right i =
+    let
+        ni = i + 1
+        max = (i // width + 1) * width
+    in
+        if ni >= max then Nothing else Just ni
 
 neighbors : Board -> Cell -> List Cell
-neighbors b c = case List.Extra.elemIndex c b of
-                  Just i -> Maybe.Extra.values (List.map (\ci -> List.Extra.getAt ci b) (Maybe.Extra.values [up i, down i, left i, right i]))
-                  Nothing -> []
+neighbors b c =
+    case List.Extra.elemIndex c b of
+        Just i -> Maybe.Extra.values (List.map (\ci -> List.Extra.getAt ci b) (Maybe.Extra.values [up i, down i, left i, right i]))
+        Nothing -> []
 
 swap : Board -> Cell -> Cell -> Board
-swap b c1 c2 = case List.Extra.elemIndex c1 b of
-                 Just i1 -> case List.Extra.elemIndex c2 b of
-                              Just i2 -> List.Extra.swapAt i1 i2 b
-                              Nothing -> b
-                 Nothing -> b
+swap b c1 c2 =
+    case List.Extra.elemIndex c1 b of
+        Just i1 -> case List.Extra.elemIndex c2 b of
+                      Just i2 -> List.Extra.swapAt i1 i2 b
+                      Nothing -> b
+        Nothing -> b
 
 solved : Board -> Bool
-solved b = (b == defaultBoard)
+solved b =
+    (b == defaultBoard)
 
 move : Board -> Cell -> Maybe Board
-move b c = let
-             n = neighbors b zeroCell
-             neighbor = List.member c n
-           in
-             if neighbor && not (solved b) then Just (swap b c zeroCell) else Nothing
+move b c =
+    let
+        n = neighbors b zeroCell
+        neighbor = List.member c n
+    in
+        if neighbor then Just (swap b c zeroCell) else Nothing
 
 hash : Board -> Int
 hash b =
@@ -174,17 +187,24 @@ solve b =
 controller : Msg -> Model -> (Model, Cmd Msg)
 controller msg m =
     case msg of
-        (Shuffle b) ->
-            ({ m | board = b }, Cmd.none)
+        (Shuffle t b (Just c, _)) ->
+            let
+                board = move b c
+            in
+                case board of
+                    Nothing -> (m, Cmd.none)
+                    Just nb -> ({ m | board = nb }, if t > 0 then shuffle (t - 1) nb else Cmd.none)
+        Shuffle _ _ ( Nothing, _ ) ->
+            (m, Cmd.none)
         (Slide c) ->
             let
-                board = move m.board c
+                board = if (not (solved m.board)) then move m.board c else Nothing
             in
                 case board of
                     Nothing -> (m, Cmd.none)
                     Just b -> ({ m | board = b, moves = m.moves + 1 }, Cmd.none)
         ResetClick ->
-            ({ m | moves = 0 }, shuffle m.board)
+            ({ m | moves = 0 }, shuffle shuffleTimes m.board)
         HintClick ->
             let
                 solution = solve m.board
@@ -193,7 +213,8 @@ controller msg m =
                 (m, Cmd.none)
 
 subs : Model -> Sub Msg
-subs _ = Sub.none
+subs _ =
+    Sub.none
 
 main : Program Flags Model Msg
 main =
