@@ -11,6 +11,8 @@ import Random
 import Random.List
 import Browser
 import Maybe.Extra
+import Dict
+import Bitwise
 
 width : Int
 width = 3
@@ -20,13 +22,15 @@ height = 3
 
 type alias Cell = Int
 type alias Board = List Cell
+type alias BoardID = Int
+type alias ParentBoardID = BoardID
 type alias Moves = Int
 
 type alias Model = { board : Board, moves : Moves }
 
 type alias Flags = ()
 
-type Msg = Reset | Shuffle Board | Slide Cell
+type Msg = ResetClick | HintClick | Shuffle Board | Slide Cell
 
 zeroCell : Cell
 zeroCell = 0
@@ -68,7 +72,8 @@ view m =
                          , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
                                     [ Html.text ("Moves: " ++ (String.fromInt m.moves)) ]
                          , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
-                                    [ Html.button [ Html.Events.onClick Reset ] [Html.text "Reset"] ] ]
+                                    [ Html.button [ Html.Events.onClick ResetClick ] [Html.text "Reset"]
+                                      , Html.button [ Html.Events.onClick HintClick ] [Html.text "Hint"] ] ]
             ]
         ]
 
@@ -120,11 +125,63 @@ move b c = let
              n = neighbors b zeroCell
              neighbor = List.member c n
            in
-             if neighbor && (not (solved b)) then Just (swap b c zeroCell) else Nothing
+             if neighbor && not (solved b) then Just (swap b c zeroCell) else Nothing
+
+hash : Board -> Int
+hash b =
+  List.foldl updateHash 5381 b
+
+updateHash : Int -> Int -> Int
+updateHash c h =
+  (Bitwise.shiftLeftBy 5 h) + h + c
+
+foldk1 : ((BoardID, (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board) -> (Dict.Dict BoardID (ParentBoardID, Board) -> Dict.Dict BoardID (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board) -> List (BoardID, (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board)
+foldk1 fn acc ls =
+    case ls of
+        [] -> acc
+        (h::t) -> fn h acc (\lacc -> foldk1 fn lacc t)
+
+foldk2 : (a -> b -> (b -> b) -> b) -> b -> List a -> b
+foldk2 fn acc ls =
+    case ls of
+        [] -> acc
+        (h::t) -> fn h acc (\lacc -> foldk2 fn lacc t)
+
+lmember : Board -> Dict.Dict BoardID (ParentBoardID, Board) -> Bool
+lmember b bs = Dict.member (hash b) bs
+
+dosolve2 : Board -> ParentBoardID -> (Cell -> (Dict.Dict BoardID (ParentBoardID, Board)) -> ((Dict.Dict BoardID (ParentBoardID, Board)) -> (Dict.Dict BoardID (ParentBoardID, Board))) -> (Dict.Dict BoardID (ParentBoardID, Board)))
+dosolve2 b bi =
+    \c ia g -> let
+                 nb = swap b c zeroCell
+               in
+                 if solved nb then Dict.singleton (hash nb) (bi, nb)
+                     else g (Dict.insert (hash nb) (bi, nb) ia)
+
+dosolve1 : Dict.Dict BoardID (ParentBoardID, Board) -> ((BoardID, (ParentBoardID, Board)) -> (Dict.Dict BoardID (ParentBoardID, Board)) -> ((Dict.Dict BoardID (ParentBoardID, Board)) -> (Dict.Dict BoardID (ParentBoardID, Board))) -> Dict.Dict BoardID (ParentBoardID, Board))
+dosolve1 p =
+    \(bi, (pbi, b)) a f ->
+       if lmember b p || lmember b a then f a
+           else if solved b then Dict.singleton (hash b) (pbi, b)
+               else f (foldk2 (dosolve2 b bi) a (neighbors b zeroCell))
+
+dosolve : (Dict.Dict BoardID (ParentBoardID, Board), Dict.Dict BoardID (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board)
+dosolve (p, u) =
+    let
+        ru = foldk1 (dosolve1 p) Dict.empty (Dict.toList u)
+    in
+        if Dict.isEmpty ru then p
+            else dosolve (Dict.union p u, ru)
+
+solve : Board -> Dict.Dict BoardID (ParentBoardID, Board)
+solve b =
+    dosolve (Dict.empty, Dict.singleton (hash b) (0, b))
 
 controller : Msg -> Model -> (Model, Cmd Msg)
 controller msg m =
     case msg of
+        (Shuffle b) ->
+            ({ m | board = b }, Cmd.none)
         (Slide c) ->
             let
                 board = move m.board c
@@ -132,10 +189,14 @@ controller msg m =
                 case board of
                     Nothing -> (m, Cmd.none)
                     Just b -> ({ m | board = b, moves = m.moves + 1 }, Cmd.none)
-        Reset ->
+        ResetClick ->
             ({ m | moves = 0 }, shuffle m.board)
-        (Shuffle b) ->
-            ({ m | board = b }, Cmd.none)
+        HintClick ->
+            let
+                solution = solve m.board
+            in
+                Debug.log (Debug.toString solution)
+                (m, Cmd.none)
 
 subs : Model -> Sub Msg
 subs _ = Sub.none
