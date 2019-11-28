@@ -24,6 +24,8 @@ type alias Cell = Int
 type alias Board = List Cell
 type alias BoardID = Int
 type alias ParentBoardID = BoardID
+type alias BoardAndParent = (Board, ParentBoardID)
+type alias IdToBoard = Dict.Dict BoardID BoardAndParent
 type alias Moves = Int
 
 type alias Model = { board : Board, moves : Moves }
@@ -135,47 +137,39 @@ updateHash : Int -> Int -> Int
 updateHash c h =
   (Bitwise.shiftLeftBy 5 h) + h + c
 
-foldk1 : ((BoardID, (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board) -> (Dict.Dict BoardID (ParentBoardID, Board) -> Dict.Dict BoardID (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board) -> List (BoardID, (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board)
-foldk1 fn acc ls =
+foldk : (a -> b -> (b -> b) -> b) -> b -> List a -> b
+foldk fn acc ls =
     case ls of
         [] -> acc
-        (h::t) -> fn h acc (\lacc -> foldk1 fn lacc t)
+        (h::t) -> fn h acc (\lacc -> foldk fn lacc t)
 
-foldk2 : (a -> b -> (b -> b) -> b) -> b -> List a -> b
-foldk2 fn acc ls =
-    case ls of
-        [] -> acc
-        (h::t) -> fn h acc (\lacc -> foldk2 fn lacc t)
+foldk1 : ((BoardID, BoardAndParent) -> IdToBoard -> (IdToBoard -> IdToBoard) -> IdToBoard) -> IdToBoard -> List (BoardID, BoardAndParent) -> IdToBoard
+foldk1 = foldk
 
-lmember : Board -> Dict.Dict BoardID (ParentBoardID, Board) -> Bool
+foldk2 : (Cell -> IdToBoard -> (IdToBoard -> IdToBoard) -> IdToBoard) -> IdToBoard -> List Cell -> IdToBoard
+foldk2 = foldk
+
+lmember : Board -> Dict.Dict BoardID BoardAndParent -> Bool
 lmember b bs = Dict.member (hash b) bs
 
-dosolve2 : Board -> ParentBoardID -> (Cell -> (Dict.Dict BoardID (ParentBoardID, Board)) -> ((Dict.Dict BoardID (ParentBoardID, Board)) -> (Dict.Dict BoardID (ParentBoardID, Board))) -> (Dict.Dict BoardID (ParentBoardID, Board)))
-dosolve2 b bi =
-    \c ia g -> let
-                 nb = swap b c zeroCell
-               in
-                 if solved nb then Dict.singleton (hash nb) (bi, nb)
-                     else g (Dict.insert (hash nb) (bi, nb) ia)
-
-dosolve1 : Dict.Dict BoardID (ParentBoardID, Board) -> ((BoardID, (ParentBoardID, Board)) -> (Dict.Dict BoardID (ParentBoardID, Board)) -> ((Dict.Dict BoardID (ParentBoardID, Board)) -> (Dict.Dict BoardID (ParentBoardID, Board))) -> Dict.Dict BoardID (ParentBoardID, Board))
-dosolve1 p =
-    \(bi, (pbi, b)) a f ->
-       if lmember b p || lmember b a then f a
-           else if solved b then Dict.singleton (hash b) (pbi, b)
-               else f (foldk2 (dosolve2 b bi) a (neighbors b zeroCell))
-
-dosolve : (Dict.Dict BoardID (ParentBoardID, Board), Dict.Dict BoardID (ParentBoardID, Board)) -> Dict.Dict BoardID (ParentBoardID, Board)
+dosolve : (Dict.Dict BoardID BoardAndParent, Dict.Dict BoardID BoardAndParent) -> Dict.Dict BoardID BoardAndParent
 dosolve (p, u) =
     let
-        ru = foldk1 (dosolve1 p) Dict.empty (Dict.toList u)
+        ru = foldk1 (\(bi, (b, pbi)) a f ->
+                            if lmember b p || lmember b a then f a
+                                else if solved b then Dict.singleton (hash b) (b, pbi)
+                                    else f (foldk2 (\c ia g -> let
+                                                                 nb = swap b c zeroCell
+                                                                in
+                                                                  if solved nb then Dict.singleton (hash nb) (nb, bi)
+                                                                      else g (Dict.insert (hash nb) (nb, bi) ia)) a (neighbors b zeroCell))) Dict.empty (Dict.toList u)
     in
         if Dict.isEmpty ru then p
             else dosolve (Dict.union p u, ru)
 
-solve : Board -> Dict.Dict BoardID (ParentBoardID, Board)
+solve : Board -> Dict.Dict BoardID BoardAndParent
 solve b =
-    dosolve (Dict.empty, Dict.singleton (hash b) (0, b))
+    dosolve (Dict.empty, Dict.singleton (hash b) (b, 0))
 
 controller : Msg -> Model -> (Model, Cmd Msg)
 controller msg m =
