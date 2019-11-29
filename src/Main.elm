@@ -156,9 +156,6 @@ foldk fn acc ls =
         [] -> acc
         (h::t) -> fn h acc (\lacc -> foldk fn lacc t)
 
-foldk1 : ((BoardID, BoardAndParent) -> IdToBoard -> (IdToBoard -> IdToBoard) -> IdToBoard) -> IdToBoard -> List (BoardID, BoardAndParent) -> IdToBoard
-foldk1 = foldk
-
 foldk2 : (Cell -> IdToBoard -> (IdToBoard -> IdToBoard) -> IdToBoard) -> IdToBoard -> List Cell -> IdToBoard
 foldk2 = foldk
 
@@ -168,17 +165,20 @@ lmember b bs = IntDict.member (hash b) bs
 dosolve : (IdToBoard, IdToBoard) -> IdToBoard
 dosolve (p, u) =
     let
-        ru = foldk1 (\(bi, (b, pbi)) a f ->
-                            if lmember b p || lmember b a then f a
-                                else if solved b then IntDict.singleton (hash b) (b, pbi)
-                                    else f (foldk2 (\c ia g -> let
-                                                                 nb = swap b c zeroCell
-                                                                in
-                                                                  if solved nb then IntDict.singleton (hash nb) (nb, bi)
-                                                                      else g (IntDict.insert (hash nb) (nb, bi) ia)) a (neighbors b zeroCell))) IntDict.empty (IntDict.toList u)
+        l = IntDict.toList u
+        s = List.Extra.find (\ (_, (b, _)) -> not (lmember b p) && solved b) l
+        r = case s of
+              Just (bi, (b, pbi)) -> IntDict.singleton bi (b, pbi)
+              Nothing -> List.foldr (\(bi, (b, _)) a ->
+                            if lmember b p || lmember b a then a
+                                else (foldk2 (\c ia g -> let
+                                                             nb = swap b c zeroCell
+                                                         in
+                                                             if solved nb then IntDict.singleton (hash nb) (nb, bi)
+                                                                  else g (IntDict.insert (hash nb) (nb, bi) ia)) a (neighbors b zeroCell))) IntDict.empty l
     in
-        if IntDict.isEmpty ru then p
-            else dosolve (IntDict.union p u, ru)
+        if IntDict.isEmpty r then p
+            else dosolve (IntDict.union p u, r)
 
 solve : Board -> IdToBoard
 solve b =
