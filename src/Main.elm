@@ -79,8 +79,8 @@ view m =
                          , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
                                     [ Html.text ("Moves: " ++ (String.fromInt m.moves)) ]
                          , Html.div [ Html.Attributes.class "columns is-mobile is-centered" ]
-                                    [ Html.button [ Html.Attributes.class "button is-primary", Html.Events.onClick ResetClick ] [Html.text "Reset"]
-                                    , Html.button [ Html.Attributes.class "button", Html.Attributes.disabled True, Html.Events.onClick HintClick ] [ Html.text "Hint" ] ] ]
+                                    [ Html.button [ Html.Events.onClick ResetClick ] [Html.text "Reset"]
+                                    , Html.button [ Html.Events.onClick HintClick ] [Html.text "Hint"] ] ]
             ]
         ]
 
